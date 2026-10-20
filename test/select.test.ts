@@ -1,0 +1,16 @@
+import { test } from 'node:test'; import assert from 'node:assert/strict';
+import { Camera } from '../src/select/camera.js'; import { selectTiles, resolveRenderable, aabbInFrustum, frustumPlanes } from '../src/select/select.js';
+import { lngLatToMerc, tileForLngLat, key, children, parent } from '../src/tile/address.js';
+const mk = (o: any = {}) => new Camera({ centerMerc: lngLatToMerc(-0.127, 51.504), distance: 1500, pitchDeg: 60, bearingDeg: 0, fovDeg: 45, width: 1280, height: 800, ...o });
+test('selects tiles around target at high zoom, no overlaps', () => { const s = selectTiles(mk(), { maxZoom: 18 }); assert.ok(s.length > 4);
+  const centre = tileForLngLat(-0.127, 51.504, 18); assert.ok(s.some(t => key({ z: t.id.z, x: centre.x >> (18 - t.id.z), y: centre.y >> (18 - t.id.z) }) === key(t.id)), 'target tile selected');
+  const keys = new Set(s.map(t => key(t.id))); for (const t of s) { let p = parent(t.id); while (p) { assert.ok(!keys.has(key(p)), 'ancestor and descendant both selected'); p = parent(p); } } });
+test('tilted view: far tiles get coarser LOD than near ones', () => { const s = selectTiles(mk({ pitchDeg: 75 }), { maxZoom: 18 });
+  const near = s[0], far = s[s.length - 1]; assert.ok(far.id.z < near.id.z, `${far.id.z} < ${near.id.z}`); });
+test('frustum culls tiles behind the camera', () => { const c = mk({ pitchDeg: 0 }); const pl = frustumPlanes(c.viewProj);
+  assert.ok(aabbInFrustum(pl, [-10, -10, 0], [10, 10, 10])); assert.ok(!aabbInFrustum(pl, [50000, 50000, 0], [50010, 50010, 10])); });
+test('closer camera selects more/finer tiles; maxZoom respected', () => { const a = selectTiles(mk({ distance: 20000 }), { maxZoom: 18 }), b = selectTiles(mk({ distance: 500 }), { maxZoom: 18 });
+  assert.ok(Math.max(...b.map(t => t.id.z)) > Math.max(...a.map(t => t.id.z))); assert.ok(selectTiles(mk({ distance: 100 }), { maxZoom: 14 }).every(t => t.id.z <= 14)); });
+test('parent fallback while children load', () => { const p = { z: 15, x: 100, y: 200 }; const cs = children(p); const loaded = new Set([key(p), key(cs[0])]);
+  const r = resolveRenderable(cs, id => loaded.has(key(id))); assert.deepEqual(r, [p]);
+  const r2 = resolveRenderable([p], id => key(id) !== key(p) && cs.some(c => key(c) === key(id))); assert.deepEqual(r2.map(key).sort(), cs.map(key).sort()); });

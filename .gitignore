@@ -1,0 +1,7 @@
+node_modules/
+demo/bundle.js
+demo/tiles/
+builder/*.geojson
+*.log
+.env
+.env.*

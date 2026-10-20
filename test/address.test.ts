@@ -1,0 +1,10 @@
+import { test } from 'node:test'; import assert from 'node:assert/strict';
+import { tileForLngLat, tileBounds, parent, children, quadkey, lngLatToMerc, mercToLngLat, isValid, ancestorAt, tilesInBounds, neighbours } from '../src/tile/address.js';
+test('known tile for Westminster z16', () => { assert.deepEqual(tileForLngLat(-0.1276, 51.5007, 16), { z: 16, x: 32744, y: 21794 }); });
+test('bounds contain point and round trip', () => { const t = tileForLngLat(-0.1276, 51.5007, 15); const b = tileBounds(t);
+  assert.ok(b.west <= -0.1276 && b.east > -0.1276 && b.south <= 51.5007 && b.north > 51.5007); const [x, y] = mercToLngLat(...lngLatToMerc(12.3, -45.6)); assert.ok(Math.abs(x - 12.3) < 1e-9 && Math.abs(y + 45.6) < 1e-9); });
+test('parent/children inverse', () => { const t = { z: 10, x: 511, y: 340 }; for (const c of children(t)) assert.deepEqual(parent(c), t); assert.equal(parent({ z: 0, x: 0, y: 0 }), null); assert.deepEqual(ancestorAt(children(t)[3], 9), parent(t)); });
+test('children tile the parent', () => { const t = { z: 3, x: 2, y: 5 }; const b = tileBounds(t); const cs = children(t).map(tileBounds);
+  assert.equal(Math.min(...cs.map(c => c.west)), b.west); assert.ok(Math.abs(Math.max(...cs.map(c => c.north)) - b.north) < 1e-9); });
+test('quadkey & validity', () => { assert.equal(quadkey({ z: 3, x: 3, y: 5 }), '213'); assert.ok(!isValid({ z: 2, x: 4, y: 0 })); assert.ok(isValid({ z: 2, x: 3, y: 3 })); });
+test('tilesInBounds / neighbours', () => { assert.equal(tilesInBounds({ west: -180, south: -85, east: 179.9, north: 85 }, 2).length, 16); assert.equal(neighbours({ z: 1, x: 0, y: 0 }).length, 3); });

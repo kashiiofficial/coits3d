@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heycoits.example/schemas/coits3d-bot-api.json",
+  "title": "coits3d read-only bot query API (v0, flagged off)",
+  "$defs": {
+    "TileId": { "type": "string", "pattern": "^[0-9]{1,2}/[0-9]+/[0-9]+$", "description": "z/x/y, XYZ Web Mercator" },
+    "LngLat": { "type": "object", "required": ["lng", "lat"], "properties": { "lng": { "type": "number", "minimum": -180, "maximum": 180 }, "lat": { "type": "number", "minimum": -90, "maximum": 90 } }, "additionalProperties": false },
+    "BBox": { "type": "object", "required": ["west", "south", "east", "north"], "properties": { "west": { "type": "number" }, "south": { "type": "number" }, "east": { "type": "number" }, "north": { "type": "number" } }, "additionalProperties": false },
+    "GetTileRequest": { "type": "object", "required": ["op", "tile"], "properties": { "op": { "const": "getTile" }, "tile": { "$ref": "#/$defs/TileId" } } },
+    "TileSummary": { "type": ["object", "null"], "required": ["id", "version", "buildings", "roads", "areas", "hasTerrain", "hasImagery", "spectrumCells"],
+      "properties": { "id": { "$ref": "#/$defs/TileId" }, "version": { "type": "integer" }, "buildings": { "type": "integer" }, "roads": { "type": "integer" }, "areas": { "type": "integer" }, "hasTerrain": { "type": "boolean" }, "hasImagery": { "type": "boolean" }, "spectrumCells": { "type": "integer" } } },
+    "QueryBusinessesRequest": { "type": "object", "required": ["op", "bbox"], "properties": { "op": { "const": "queryBusinesses" }, "bbox": { "$ref": "#/$defs/BBox" } } },
+    "Business": { "type": "object", "required": ["id", "name", "lng", "lat", "deliveryPoints", "verified"],
+      "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "lng": { "type": "number" }, "lat": { "type": "number" }, "category": { "type": "string" }, "verified": { "const": true },
+        "deliveryPoints": { "type": "array", "items": { "type": "object", "required": ["lng", "lat", "kind"], "properties": { "lng": { "type": "number" }, "lat": { "type": "number" }, "kind": { "enum": ["loading", "drop"] } } } } } },
+    "RobotRouteRequest": { "type": "object", "required": ["op", "from", "to"], "properties": { "op": { "const": "robotRoute" }, "from": { "$ref": "#/$defs/LngLat" }, "to": { "$ref": "#/$defs/LngLat" } }, "description": "Stub: currently always returns error not_implemented" },
+    "Event": { "oneOf": [
+      { "type": "object", "required": ["type", "tile"], "properties": { "type": { "const": "tileLoaded" }, "tile": { "$ref": "#/$defs/TileId" } } },
+      { "type": "object", "required": ["type", "tile"], "properties": { "type": { "const": "spectrumPublished" }, "tile": { "$ref": "#/$defs/TileId" } } } ] },
+    "Error": { "type": "object", "required": ["error"], "properties": { "error": { "enum": ["disabled", "invalid_tile", "not_implemented"] } } }
+  },
+  "oneOf": [ { "$ref": "#/$defs/GetTileRequest" }, { "$ref": "#/$defs/QueryBusinessesRequest" }, { "$ref": "#/$defs/RobotRouteRequest" } ]
+}

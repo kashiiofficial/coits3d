@@ -1,0 +1,14 @@
+import { test } from 'node:test'; import assert from 'node:assert/strict';
+import { TileQueryApi, ApiDisabledError } from '../src/api/query.js'; import { TileLoader } from '../src/loader/loader.js'; import { MemorySource } from '../src/loader/sources.js';
+import { encodeTile, emptyTile } from '../src/tile/format.js'; import { setFlags, resetFlags } from '../src/flags.js'; import { assertAllowedImagery } from '../src/imagery/source.js';
+import { buildTileMeshes, STRIDE } from '../src/render/meshes.js'; import { DirectorySource } from '../src/loader/sources.js';
+test('bot API: off by default, read-only queries when on, robot/business stubs', async () => { const s = new MemorySource(); const t = emptyTile({ z: 3, x: 1, y: 2 }); t.buildings.push({ height: 5, minHeight: 0, rings: [[0, 0, 10, 0, 10, 10]] }); s.tiles.set('3/1/2', encodeTile(t));
+  const api = new TileQueryApi(new TileLoader(s)); resetFlags(); await assert.rejects(api.getTile('3/1/2'), ApiDisabledError);
+  setFlags({ botApi: true }); const ev: unknown[] = []; api.on(e => ev.push(e)); const sum = await api.getTile('3/1/2'); assert.equal(sum!.buildings, 1); assert.equal(ev.length, 1);
+  assert.equal(await api.getTile('3/0/0'), null); assert.deepEqual(await api.queryBusinesses({ west: 0, south: 0, east: 1, north: 1 }), []); await assert.rejects(api.robotRoute({ lng: 0, lat: 0 }, { lng: 1, lat: 1 }), /not implemented/); resetFlags(); });
+test('licensed imagery hosts are refused', () => { assert.throws(() => assertAllowedImagery('https://mt1.google.com/vt/{z}/{x}/{y}')); assertAllowedImagery('https://example.org/landsat/{z}/{x}/{y}.jpg'); });
+test('mesh builder produces terrain, extruded buildings and flat layers', () => { const t = emptyTile({ z: 16, x: 0, y: 0 }); t.terrain = { size: 3, minH: 0, maxH: 0, heights: new Float32Array(9) };
+  t.buildings.push({ height: 20, minHeight: 0, rings: [[0, 0, 100, 0, 100, 100, 0, 100]] }); t.roads.push({ cls: 2, width: 10, line: [0, 0, 4096, 4096] }); t.areas.push({ cls: 1, rings: [[0, 0, 50, 0, 50, 50]] });
+  const m = buildTileMeshes(t, { tileSizeM: 611, heightScale: 1 }); assert.equal(m.terrain.indices.length, 2 * 2 * 6); assert.equal(m.buildings.vertices.length / STRIDE, 4 + 16);
+  const zs = []; for (let i = 2; i < m.buildings.vertices.length; i += STRIDE) zs.push(m.buildings.vertices[i]); assert.equal(Math.max(...zs), 20); assert.equal(m.flat.indices.length, 3 + 6); });
+test('directory source reads built sample tiles', async () => { const d = new DirectorySource('demo/tiles'); const ac = new AbortController(); assert.equal(await d.fetchTile({ z: 0, x: 0, y: 0 }, ac.signal), null); });
