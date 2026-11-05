@@ -7,10 +7,11 @@ const canvas = document.getElementById('c') as HTMLCanvasElement; const dpr = Ma
 canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
 const gl = canvas.getContext('webgl2', { antialias: true })!; const renderer = new TileRenderer(gl);
 const c3d = c3dEnabled(location.search, flags().renderer3d);
-const decor = c3d ? new DecorRenderer(gl) : null;
-if (decor) document.getElementById('attr')?.insertAdjacentText('beforeend', ' · schematic trees, hedges, planters and road works (ODbL)');
-const loader = new TileLoader(new HttpSource('./tiles/{z}/{x}/{y}.c3dt', 14, 16), { cacheBytes: 64 * 2 ** 20, onEvict: k => renderer.disposeTile(k), onLoad: () => (dirty = true) });
 const q = new URLSearchParams(location.search);
+const worksParam = q.get('works');
+const decor = c3d ? new DecorRenderer(gl, { works: worksParam === 'always' || worksParam === 'never' ? worksParam : 'hash' }) : null;
+if (decor) document.getElementById('attr')?.insertAdjacentText('beforeend', ' · trees, hedges, planters and sample road works placed from OSM (ODbL)');
+const loader = new TileLoader(new HttpSource('./tiles/{z}/{x}/{y}.c3dt', 14, 16), { cacheBytes: 64 * 2 ** 20, onEvict: k => renderer.disposeTile(k), onLoad: () => (dirty = true) });
 const cam = new Camera({ centerMerc: lngLatToMerc(+(q.get('lng') ?? -0.1270), +(q.get('lat') ?? 51.5040)), distance: +(q.get('d') ?? 1400), pitchDeg: +(q.get('pitch') ?? 58), bearingDeg: +(q.get('bearing') ?? 20), fovDeg: 45, width: canvas.width, height: canvas.height });
 let dirty = true, drag: { x: number; y: number; b: boolean } | null = null;
 canvas.onpointerdown = e => (drag = { x: e.clientX, y: e.clientY, b: e.button === 2 || e.shiftKey });

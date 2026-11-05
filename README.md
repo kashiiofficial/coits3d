@@ -14,7 +14,7 @@ npm test                 # unit tests (node:test)
 npm run typecheck
 npm run demo             # builds London sample tiles (needs `osmium` CLI) + serves http://127.0.0.1:8765/demo/
 ```
-Demo controls: drag to pan, right-drag or shift-drag to orbit/tilt, wheel to zoom. Add `?c3d` to draw vegetation and road works (for example `demo/?c3d&pitch=60`). Without `?c3d`, or with `?flag=off`, the picture matches the base renderer.
+Demo controls: drag to pan, right-drag or shift-drag to orbit/tilt, wheel to zoom. Add `?c3d` to draw vegetation and road works (for example `demo/?c3d&pitch=60`, or `demo/?c3d&works=always` to show a works site on every tile). Without `?c3d`, or with `?flag=off`, the picture matches the base renderer.
 
 ## Architecture
 ```
@@ -37,13 +37,20 @@ Demo controls: drag to pan, right-drag or shift-drag to orbit/tilt, wheel to zoo
 | Rendering | `src/render/*` | CPU mesh building (terrain grid with normals and UVs, earcut roofs plus extruded walls, draped road strips and area polygons), WebGL2 renderer with a VAO/VBO/IBO per tile, `disposeTile`, imagery draped on terrain |
 | Builder | `builder/build.ts` | OSM `.pbf` (through `osmium export`) or GeoJSON → tiles z14–16, clipping roads per tile. Drops names/addresses. |
 | Flags | `src/flags.ts` | `renderer3d`, `imagery`, `spectrumIngest`, `spectrumPublish`, `robotLayer`, `businessLayer`, `botApi`, all `false` |
-| Decor | `src/decor/` | Trees, hedges, planters, sign atlas, cones, Chapter 8 barriers, temporary lights, closure and diversion signs. Instanced. Drawn only with `?c3d` while `renderer3d` is on. See `src/decor/NOTICE.md`. |
+| Decor | `src/decor/` | Broadleaf and conifer trees with LOD, street trees, sphere hedges, planters, sign atlas, cones, Chapter 8 barriers, temporary lights, closure and diversion signs. Instanced. Drawn only with `?c3d` while `renderer3d` is on. See `src/decor/NOTICE.md`. |
 
 ### Decor (`?c3d` only)
 
-`src/decor/` adds an instanced pass on top of the base renderer: trees (trunk and canopy), hedges, planters, cones, Chapter 8 red/white barriers, temporary traffic lights, and closure and diversion signs sharing one atlas. It is constructed only when `renderer3d` is on and the URL contains `?c3d` (`0`, `false`, `off` and `no` stay off). Placement comes from park, wood, pedestrian and road geometry already in the tile. Map data stays © OpenStreetMap contributors (ODbL). Sign faces are original schematics, not official traffic-sign artwork. Details and the note about upstream `coits-studio` `20711ba` are in `src/decor/NOTICE.md`.
+`src/decor/` adds an instanced pass on top of the base renderer. It is constructed only when `renderer3d` is on and the URL contains `?c3d` (`0`, `false`, `off` and `no` stay off). It draws:
 
-The pass uses one draw per mesh slot (9 slots, so at most 9 draws, under the 18-draw ceiling). Ten thousand trees are two instances each (trunk and canopy) and one thousand works objects are one instance each: 7 draws and 1,443,024 bytes, including the shared meshes and the 128×128 sign atlas. `test/decor.test.ts` fails if this goes over 1,600,000 bytes.
+- Broadleaf and conifer trees from the CoitsMoves Studio prototypes (`veg-proto.ts`), each at LOD 0/1/2. A tile's LOD comes from its distance to the camera.
+- Street trees along primary to residential roads.
+- Hedges as rows of round bushes, and planters.
+- A road-works kit (cones, Chapter 8 barriers, portable signals, a closure or diversion sign) on about one tile in eight.
+
+Placement comes from park, wood, pedestrian and road geometry already in the tile. Map data stays © OpenStreetMap contributors (ODbL). Sign faces are original schematics, not official traffic-sign artwork. The tiles carry no works features, so works sites are a deterministic per-tile sample. The demo accepts `?works=always` or `?works=never` to override it. Details are in `src/decor/NOTICE.md`.
+
+There is one draw per occupied mesh slot. There are 16 slots: 11 vegetation (kind × LOD) and 5 works, so even the worst case stays under the 18-draw ceiling. A tree is one instance, because its mesh carries both trunk and crown, and so is a works object. Ten thousand trees plus one thousand works objects need at most 11 draws and 934,848 bytes, including every LOD mesh and the 128×128 sign atlas. `test/decor.test.ts` fails if this goes over 1,600,000 bytes.
 
 ### Tile format (`.c3dt` v1)
 Little-endian. Header: `"C3DT"`, `u16 version`, `u8 z`, `u32 x`, `u32 y`, `u16 extent (4096)`, `u16 layerCount`. Each layer is `u8 type`, `u32 byteLength`, then the payload. Geometry uses tile-local integer coordinates (i16, so it can sit slightly outside the tile). Heights are in metres. Terrain is an N×N float32 grid whose edge samples are shared with neighbouring tiles. Version bumps must stay backward-readable.
