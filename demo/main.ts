@@ -1,13 +1,17 @@
 // Local demo: renders the London sample tiles in 3D. Not deployed. Enable via flag (demo sets it locally only).
-import { Camera, HttpSource, TileLoader, TileRenderer, selectTiles, resolveRenderable, lngLatToMerc, setFlags, flags, key } from '../src/index.js';
+import { Camera, HttpSource, TileLoader, TileRenderer, selectTiles, resolveRenderable, lngLatToMerc, setFlags, flags, key, c3dEnabled, DecorRenderer } from '../src/index.js';
 setFlags({ renderer3d: new URLSearchParams(location.search).get('flag') !== 'off' });
 const status = document.getElementById('status')!;
 if (!flags().renderer3d) { status.textContent = 'renderer3d flag is off'; throw new Error('off'); }
 const canvas = document.getElementById('c') as HTMLCanvasElement; const dpr = Math.min(2, devicePixelRatio);
 canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
 const gl = canvas.getContext('webgl2', { antialias: true })!; const renderer = new TileRenderer(gl);
-const loader = new TileLoader(new HttpSource('./tiles/{z}/{x}/{y}.c3dt', 14, 16), { cacheBytes: 64 * 2 ** 20, onEvict: k => renderer.disposeTile(k), onLoad: () => (dirty = true) });
+const c3d = c3dEnabled(location.search, flags().renderer3d);
 const q = new URLSearchParams(location.search);
+const worksParam = q.get('works');
+const decor = c3d ? new DecorRenderer(gl, { works: worksParam === 'always' || worksParam === 'never' ? worksParam : 'hash' }) : null;
+if (decor) document.getElementById('attr')?.insertAdjacentText('beforeend', ' · trees, hedges, planters and sample road works placed from OSM (ODbL)');
+const loader = new TileLoader(new HttpSource('./tiles/{z}/{x}/{y}.c3dt', 14, 16), { cacheBytes: 64 * 2 ** 20, onEvict: k => renderer.disposeTile(k), onLoad: () => (dirty = true) });
 const cam = new Camera({ centerMerc: lngLatToMerc(+(q.get('lng') ?? -0.1270), +(q.get('lat') ?? 51.5040)), distance: +(q.get('d') ?? 1400), pitchDeg: +(q.get('pitch') ?? 58), bearingDeg: +(q.get('bearing') ?? 20), fovDeg: 45, width: canvas.width, height: canvas.height });
 let dirty = true, drag: { x: number; y: number; b: boolean } | null = null;
 canvas.onpointerdown = e => (drag = { x: e.clientX, y: e.clientY, b: e.button === 2 || e.shiftKey });
@@ -24,7 +28,13 @@ function frame() {
     const pinned = new Set<string>(); const draw = resolveRenderable(sel.map(s => s.id), id => !!loader.cache.peek(key(id)));
     for (const id of draw) { const t = loader.cache.get(key(id)); if (t) { renderer.addTile(t); pinned.add(key(id)); } }
     loader.cache.trim(pinned); renderer.render(cam, draw);
-    status.textContent = `selected ${sel.length} · drawing ${draw.length} · cached ${loader.cache.size} · GPU ${(renderer.gpuBytes / 2 ** 20).toFixed(1)} MiB · queue ${loader.queuedCount}/${loader.inflightCount}`;
+    if (decor) {
+      const tiles = draw.flatMap(id => { const t = loader.cache.get(key(id)); return t ? [t] : []; });
+      decor.sync(tiles, cam); decor.render(cam);
+    }
+    let line = `selected ${sel.length} · drawing ${draw.length} · cached ${loader.cache.size} · GPU ${(renderer.gpuBytes / 2 ** 20).toFixed(1)} MiB · queue ${loader.queuedCount}/${loader.inflightCount}`;
+    if (decor) line += ` · decor ${decor.lastDraws} draws / ${(decor.gpuBytes / 2 ** 20).toFixed(2)} MiB`;
+    status.textContent = line;
     if (loader.queuedCount || loader.inflightCount) dirty = true; else (window as any).__ready = true; }
   requestAnimationFrame(frame); }
 frame();
