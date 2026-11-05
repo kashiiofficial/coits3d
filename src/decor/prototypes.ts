@@ -103,7 +103,7 @@ function lamp(b: B, z: number, col: number[]) {
 
 function sign(b: B, uv: { u0: number; v0: number; u1: number; v1: number }) {
   cylinder(b, 0.045, 1.55, 6, GREY);
-  const x0 = -0.045, x1 = 0.045, y0 = -0.58, y1 = 0.58, z0 = 1.45, z1 = 2.85;
+  const x0 = -0.045, x1 = 0.045, y0 = -0.6, y1 = 0.6, z0 = 1.5, z1 = 2.1;
   // Broad faces carry the atlas. The pole and the rim stay on vertex colour (uv.x < 0).
   const c = WHITE;
   const a = b.n;

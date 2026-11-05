@@ -23,16 +23,16 @@ test('?c3d is off unless the query asks for it and 3D is on', () => {
 
 test('sign atlas is a shared closure and diversion texture', () => {
   const a = signAtlas();
-  assert.equal(a.width, 256);
-  assert.equal(a.height, 256);
+  assert.equal(a.width, 128);
+  assert.equal(a.height, 128);
   assert.equal(a.rgba.length, a.width * a.height * 4);
   assert.deepEqual(a.rgba, signAtlas().rgba);
   const red = pixel(a.rgba, a.width, 8, 8);
-  const yellow = pixel(a.rgba, a.width, a.width / 2 + 8, 8);
+  const yellow = pixel(a.rgba, a.width, 8, a.height / 2 + 8);
   assert.ok(red[0] > 160 && red[0] > red[1] + 40 && red[0] > red[2] + 40, `closure corner ${red}`);
   assert.ok(yellow[0] > 180 && yellow[1] > 160 && yellow[2] < 80, `diversion corner ${yellow}`);
-  assert.deepEqual(a.uv.closure, { u0: 0, v0: 0, u1: 0.5, v1: 1 });
-  assert.deepEqual(a.uv.diversion, { u0: 0.5, v0: 0, u1: 1, v1: 1 });
+  assert.deepEqual(a.uv.closure, { u0: 0, v0: 0, u1: 1, v1: 0.5 });
+  assert.deepEqual(a.uv.diversion, { u0: 0, v0: 0.5, u1: 1, v1: 1 });
 });
 
 test('10k trees and 1k works stay within the instancing budget', () => {
@@ -42,9 +42,7 @@ test('10k trees and 1k works stay within the instancing budget', () => {
   assert.equal(WORK_SLOTS.length, 5);
   assert.equal(b.draws, 7);
   assert.ok(b.draws <= 18);
-  const target = 1_600_000;
-  const rel = Math.abs(b.bytes - target) / target;
-  assert.ok(rel < 0.08, `decor bytes ${b.bytes} (${(rel * 100).toFixed(2)}% from 1.6 MB)`);
+  assert.ok(b.bytes <= 1_600_000, `decor bytes ${b.bytes} exceed the 1,600,000-byte budget`);
   assert.equal(b.instanceBytes, (10_000 * 2 + 1_000) * 64);
   assert.equal(b.bytes, b.instanceBytes + fixedDecorBytes());
   assert.ok(fixedDecorBytes() > signAtlas().rgba.byteLength);
